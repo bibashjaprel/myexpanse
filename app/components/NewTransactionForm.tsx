@@ -27,18 +27,9 @@ const categories = {
     'Business',
     'Other',
   ],
-}
+} as const
 
-type TransactionType = 'expense' | 'income'
-
-type FormData = {
-  amount: string
-  description: string
-  category: string
-  date: string
-  time: string
-  type: TransactionType
-}
+type TransactionType = keyof typeof categories
 
 type FieldProps = {
   id: string
@@ -64,41 +55,34 @@ const InputField = ({
   min,
 }: FieldProps) => (
   <div className="flex flex-col">
-    <label htmlFor={id} className="mb-1 text-sm font-semibold text-gray-900">
+    <label htmlFor={id} className="mb-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
       {label} {required && <span className="text-red-600">*</span>}
     </label>
     <input
       {...{ id, type, value, onChange, required, placeholder, step, min }}
-      className="rounded-md border border-gray-300 px-4 py-3 text-gray-900 placeholder-gray-400 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-400 transition"
+      className="rounded-md border border-gray-300 px-4 py-3 text-gray-900 placeholder-gray-400 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-400 transition dark:bg-gray-700 dark:text-gray-100 dark:border-gray-600"
     />
   </div>
 )
 
-type SelectProps = Omit<FieldProps, 'type' | 'step' | 'min' | 'placeholder'> & {
-  options: string[]
-}
+type SelectProps = Omit<FieldProps, 'type' | 'step' | 'min' | 'placeholder'> & { options: readonly string[] }
 
-const SelectField = ({
-  id,
-  label,
-  value,
-  onChange,
-  options,
-  required,
-}: SelectProps) => (
+const SelectField = ({ id, label, value, onChange, options, required }: SelectProps) => (
   <div className="flex flex-col">
-    <label htmlFor={id} className="mb-1 text-sm font-semibold text-gray-900">
+    <label htmlFor={id} className="mb-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
       {label} {required && <span className="text-red-600">*</span>}
     </label>
     <select
       {...{ id, value, onChange, required }}
-      className="rounded-md border border-gray-300 bg-white px-4 py-3 text-gray-900 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-400 transition"
+      className="rounded-md border border-gray-300 bg-white px-4 py-3 text-gray-900 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-400 transition dark:bg-gray-700 dark:text-gray-100 dark:border-gray-600"
     >
       <option value="" disabled>
         Select {label.toLowerCase()}
       </option>
-      {options.map((opt) => (
-        <option key={opt}>{opt}</option>
+      {options.map(opt => (
+        <option key={opt} value={opt}>
+          {opt}
+        </option>
       ))}
     </select>
   </div>
@@ -106,41 +90,40 @@ const SelectField = ({
 
 export default function NewTransactionForm() {
   const { user, isSignedIn } = useUser()
-  const [formData, setFormData] = useState<FormData>({
+  const [formData, setFormData] = useState({
     amount: '',
     description: '',
     category: '',
     date: '',
     time: '',
-    type: 'expense',
+    type: 'expense' as TransactionType,
   })
-  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>(
-    'idle'
-  )
+  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
   const [error, setError] = useState('')
 
   useEffect(() => {
     const now = new Date()
-    setFormData((f) => ({
+    setFormData(f => ({
       ...f,
       date: now.toISOString().split('T')[0],
       time: now.toTimeString().slice(0, 5),
     }))
   }, [])
 
-  const handleChange = (
-    e: ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
+  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { id, value } = e.target
-    setFormData((f) => ({ ...f, [id]: value }))
+    setFormData(f => ({ ...f, [id]: value }))
   }
 
-  const toggleType = (type: TransactionType) =>
-    setFormData((f) => ({ ...f, type, category: '' }))
+  const toggleType = (type: TransactionType) => setFormData(f => ({ ...f, type, category: '' }))
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    if (!user) return setError('User not found.'), setStatus('error')
+    if (!user) {
+      setError('User not found.')
+      setStatus('error')
+      return
+    }
 
     setStatus('loading')
     setError('')
@@ -151,40 +134,50 @@ export default function NewTransactionForm() {
         body: JSON.stringify({ ...formData, userId: user.id }),
       })
 
-      if (!res.ok) throw new Error((await res.json()).error || 'Submission failed')
+      if (!res.ok) {
+        const errorResponse = await res.json()
+        throw new Error(errorResponse.error || 'Submission failed')
+      }
+
       setStatus('success')
-      setFormData((f) => ({ ...f, amount: '', description: '', category: '' }))
+      setFormData(f => ({
+        ...f,
+        amount: '',
+        description: '',
+        category: '',
+      }))
       setTimeout(() => setStatus('idle'), 3000)
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message)
+      } else {
+        setError('An unknown error occurred')
+      }
       setStatus('error')
     }
   }
 
   if (!isSignedIn)
     return (
-      <p className="mt-16 text-center text-lg text-gray-600 font-medium">
+      <p className="mt-16 text-center text-lg text-gray-600 font-medium dark:text-gray-300">
         Please sign in to add transactions.
       </p>
     )
 
   return (
-    <div className="mx-auto mt-12 max-w-md rounded-xl bg-white p-8 shadow-lg ring-1 ring-gray-200">
-      <h1 className="mb-8 text-center text-4xl font-extrabold text-gray-900">
-        Add New Transaction
-      </h1>
+    <div className="mx-auto mt-12 max-w-md rounded-xl bg-white p-8 shadow-lg ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
+      <h1 className="mb-8 text-center text-4xl font-extrabold text-gray-900 dark:text-gray-100">Add New Transaction</h1>
 
-      <div className="mb-8 flex overflow-hidden rounded-full bg-gray-100 shadow-inner">
-        {(['income', 'expense'] as TransactionType[]).map((type) => (
+      <div className="mb-8 flex overflow-hidden rounded-full bg-gray-100 shadow-inner dark:bg-gray-700">
+        {(['income', 'expense'] as const).map(type => (
           <button
             key={type}
             type="button"
             onClick={() => toggleType(type)}
             className={`flex-1 rounded-full px-6 py-3 text-lg font-semibold transition-colors ${formData.type === type
-              ? `bg-${type === 'income' ? 'green' : 'red'
-              }-600 text-white shadow-md hover:bg-${type === 'income' ? 'green' : 'red'
+              ? `bg-${type === 'income' ? 'green' : 'red'}-600 text-white shadow-md hover:bg-${type === 'income' ? 'green' : 'red'
               }-700`
-              : 'text-gray-700 hover:bg-gray-200'
+              : 'text-gray-700 hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-600'
               }`}
           >
             {type[0].toUpperCase() + type.slice(1)}
@@ -221,30 +214,13 @@ export default function NewTransactionForm() {
           required
         />
         <div className="grid grid-cols-2 gap-6">
-          <InputField
-            id="date"
-            label="Date"
-            type="date"
-            value={formData.date}
-            onChange={handleChange}
-            required
-          />
-          <InputField
-            id="time"
-            label="Time"
-            type="time"
-            value={formData.time}
-            onChange={handleChange}
-          />
+          <InputField id="date" label="Date" type="date" value={formData.date} onChange={handleChange} required />
+          <InputField id="time" label="Time" type="time" value={formData.time} onChange={handleChange} />
         </div>
-        {status === 'error' && (
-          <p className="text-center text-sm font-medium text-red-600">{error}</p>
-        )}
-        {status === 'success' && (
-          <p className="text-center text-sm font-medium text-green-600">
-            Transaction added!
-          </p>
-        )}
+
+        {status === 'error' && <p className="text-center text-sm font-medium text-red-600">{error}</p>}
+        {status === 'success' && <p className="text-center text-sm font-medium text-green-600">Transaction added!</p>}
+
         <button
           type="submit"
           disabled={status === 'loading'}

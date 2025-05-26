@@ -73,7 +73,11 @@ export default function NewTransactionForm() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    if (!user) return setError('User not found.'), setStatus('error')
+    if (!user) {
+      setError('User not found.')
+      setStatus('error')
+      return
+    }
 
     setStatus('loading')
     setError('')
@@ -88,8 +92,12 @@ export default function NewTransactionForm() {
       setStatus('success')
       setFormData(f => ({ ...f, amount: '', description: '', category: '' }))
       setTimeout(() => setStatus('idle'), 3000)
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message)
+      } else {
+        setError(String(err))
+      }
       setStatus('error')
     }
   }
@@ -107,8 +115,11 @@ export default function NewTransactionForm() {
             type="button"
             onClick={() => toggleType(type)}
             className={`flex-1 rounded-full px-6 py-3 text-lg font-semibold transition-colors ${formData.type === type
-              ? `bg-${type === 'income' ? 'green' : 'red'}-600 text-white shadow-md hover:bg-${type === 'income' ? 'green' : 'red'}-700`
-              : 'text-gray-700 hover:bg-gray-200'}`}
+              ? type === 'income'
+                ? 'bg-green-600 text-white shadow-md hover:bg-green-700'
+                : 'bg-red-600 text-white shadow-md hover:bg-red-700'
+              : 'text-gray-700 hover:bg-gray-200'
+              }`}
           >
             {type[0].toUpperCase() + type.slice(1)}
           </button>

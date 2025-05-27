@@ -11,6 +11,7 @@
   "dependencies": {
     "@clerk/nextjs": "^6.20.0",
     "@prisma/client": "^6.8.2",
+    "framer-motion": "^12.14.0",
     "next": "15.3.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

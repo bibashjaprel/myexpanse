@@ -5,37 +5,36 @@ export async function POST(request: Request) {
   try {
     const data = await request.json()
 
-    // Basic validation
-    if (!data.userId || !data.amount || !data.description) {
+    // Validate required fields
+    const { userId, amount, description, category, type, date, time } = data
+
+    if (!userId || !amount || !description || !category || !type || !date) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    // Convert amount to number (float)
-    const amount = parseFloat(data.amount)
-    if (isNaN(amount)) {
-      return NextResponse.json({ error: 'Invalid amount value' }, { status: 400 })
+    const parsedAmount = parseFloat(amount)
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      return NextResponse.json({ error: 'Invalid amount' }, { status: 400 })
     }
 
     const transaction = await prisma.transaction.create({
       data: {
-        userId: data.userId,
-        amount, // use the parsed float here
-        description: data.description,
-        category: data.category,
-        type: data.type,
-        date: new Date(data.date),
-        time: data.time,
+        userId,
+        amount: parsedAmount,
+        description: description.trim(),
+        category,
+        type,
+        date: new Date(date),
+        time: time || new Date().toTimeString().slice(0, 5),
       },
     })
 
-    return NextResponse.json(transaction)
+    return NextResponse.json(transaction, { status: 201 })
   } catch (error) {
-    console.error('Error creating transaction:', error)
+    console.error('POST /api/transactions error:', error)
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
   }
 }
-
-
 
 export async function GET(req: Request) {
   try {
@@ -54,7 +53,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json(transactions)
   } catch (error) {
-    console.error('Error fetching transactions:', error)
+    console.error('GET /api/transactions error:', error)
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
   }
 }

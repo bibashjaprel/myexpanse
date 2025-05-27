@@ -1,31 +1,16 @@
 'use client'
 
-import { useState, useEffect, ChangeEvent, FormEvent } from 'react'
+import { useState, useEffect, useRef, ChangeEvent, FormEvent } from 'react'
 import { useUser } from '@clerk/nextjs'
+import { motion } from 'framer-motion'
 
 const categories = {
   expense: [
-    'Food & Dining',
-    'Transportation',
-    'Housing',
-    'Utilities',
-    'Entertainment',
-    'Healthcare',
-    'Shopping',
-    'Personal Care',
-    'Education',
-    'Travel',
-    'Other',
+    'Food & Dining', 'Transportation', 'Housing', 'Utilities', 'Entertainment',
+    'Healthcare', 'Shopping', 'Personal Care', 'Education', 'Travel', 'Other',
   ],
   income: [
-    'Salary',
-    'Freelance',
-    'Investment',
-    'Gift',
-    'Refund',
-    'Rental Income',
-    'Business',
-    'Other',
+    'Salary', 'Freelance', 'Investment', 'Gift', 'Refund', 'Rental Income', 'Business', 'Other',
   ],
 } as const
 
@@ -44,23 +29,16 @@ type FieldProps = {
 }
 
 const InputField = ({
-  id,
-  label,
-  value,
-  onChange,
-  required,
-  type = 'text',
-  placeholder,
-  step,
-  min,
+  id, label, value, onChange, required, type = 'text',
+  placeholder, step, min,
 }: FieldProps) => (
-  <div className="flex flex-col">
-    <label htmlFor={id} className="mb-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
-      {label} {required && <span className="text-red-600">*</span>}
+  <div className="flex flex-col gap-1">
+    <label htmlFor={id} className="text-sm font-medium text-gray-800 dark:text-gray-200">
+      {label} {required && <span className="text-red-500">*</span>}
     </label>
     <input
       {...{ id, type, value, onChange, required, placeholder, step, min }}
-      className="rounded-md border border-gray-300 px-4 py-3 text-gray-900 placeholder-gray-400 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-400 transition dark:bg-gray-700 dark:text-gray-100 dark:border-gray-600"
+      className="rounded-lg border border-gray-300 px-4 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white dark:border-gray-600"
     />
   </div>
 )
@@ -68,21 +46,17 @@ const InputField = ({
 type SelectProps = Omit<FieldProps, 'type' | 'step' | 'min' | 'placeholder'> & { options: readonly string[] }
 
 const SelectField = ({ id, label, value, onChange, options, required }: SelectProps) => (
-  <div className="flex flex-col">
-    <label htmlFor={id} className="mb-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
-      {label} {required && <span className="text-red-600">*</span>}
+  <div className="flex flex-col gap-1">
+    <label htmlFor={id} className="text-sm font-medium text-gray-800 dark:text-gray-200">
+      {label} {required && <span className="text-red-500">*</span>}
     </label>
     <select
       {...{ id, value, onChange, required }}
-      className="rounded-md border border-gray-300 bg-white px-4 py-3 text-gray-900 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-400 transition dark:bg-gray-700 dark:text-gray-100 dark:border-gray-600"
+      className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white dark:border-gray-600"
     >
-      <option value="" disabled>
-        Select {label.toLowerCase()}
-      </option>
+      <option value="" disabled>Select {label.toLowerCase()}</option>
       {options.map(opt => (
-        <option key={opt} value={opt}>
-          {opt}
-        </option>
+        <option key={opt} value={opt}>{opt}</option>
       ))}
     </select>
   </div>
@@ -90,14 +64,13 @@ const SelectField = ({ id, label, value, onChange, options, required }: SelectPr
 
 export default function NewTransactionForm() {
   const { user, isSignedIn } = useUser()
+  const messageRef = useRef<HTMLParagraphElement>(null)
+
   const [formData, setFormData] = useState({
-    amount: '',
-    description: '',
-    category: '',
-    date: '',
-    time: '',
+    amount: '', description: '', category: '', date: '', time: '',
     type: 'expense' as TransactionType,
   })
+
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
   const [error, setError] = useState('')
 
@@ -110,74 +83,87 @@ export default function NewTransactionForm() {
     }))
   }, [])
 
+  useEffect(() => {
+    if (status !== 'idle') {
+      messageRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [status])
+
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { id, value } = e.target
     setFormData(f => ({ ...f, [id]: value }))
   }
 
-  const toggleType = (type: TransactionType) => setFormData(f => ({ ...f, type, category: '' }))
+  const toggleType = (type: TransactionType) => {
+    setFormData(f => ({ ...f, type, category: '' }))
+  }
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    if (!user) {
-      setError('User not found.')
+    if (!user) return setError('User not found.'), setStatus('error')
+
+    if (!formData.amount || parseFloat(formData.amount) <= 0) {
+      setError('Amount must be greater than 0.')
       setStatus('error')
       return
     }
 
     setStatus('loading')
     setError('')
+
     try {
       const res = await fetch('/api/transactions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, userId: user.id }),
+        body: JSON.stringify({
+          ...formData,
+          userId: user.id,
+          description: formData.description.trim(),
+        }),
       })
 
       if (!res.ok) {
-        const errorResponse = await res.json()
-        throw new Error(errorResponse.error || 'Submission failed')
+        const errRes = await res.json()
+        throw new Error(errRes.error || 'Submission failed')
       }
 
       setStatus('success')
       setFormData(f => ({
         ...f,
-        amount: '',
-        description: '',
-        category: '',
+        amount: '', description: '', category: '',
+        time: new Date().toTimeString().slice(0, 5),
       }))
       setTimeout(() => setStatus('idle'), 3000)
     } catch (err: unknown) {
-      if (err instanceof Error) {
-        setError(err.message)
-      } else {
-        setError('An unknown error occurred')
-      }
+      setError(err instanceof Error ? err.message : 'Something went wrong.')
       setStatus('error')
     }
   }
 
-  if (!isSignedIn)
+  if (!isSignedIn) {
     return (
-      <p className="mt-16 text-center text-lg text-gray-600 font-medium dark:text-gray-300">
+      <p className="mt-16 text-center text-lg text-gray-600 dark:text-gray-300">
         Please sign in to add transactions.
       </p>
     )
+  }
 
   return (
-    <div className="mx-auto mt-12 max-w-md rounded-xl bg-white p-8 shadow-lg ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
-      <h1 className="mb-8 text-center text-4xl font-extrabold text-gray-900 dark:text-gray-100">Add New Transaction</h1>
+    <div className="mx-auto mt-12 max-w-lg rounded-2xl border border-gray-200 bg-white p-8 shadow-lg dark:bg-zinc-900 dark:border-gray-700">
+      <h1 className="mb-6 text-center text-3xl  text-gray-900 dark:text-white font-sans font-semibold">Add Transaction</h1>
 
-      <div className="mb-8 flex overflow-hidden rounded-full bg-gray-100 shadow-inner dark:bg-gray-700">
+      <div className="mb-6 grid grid-cols-2 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
         {(['income', 'expense'] as const).map(type => (
           <button
             key={type}
             type="button"
             onClick={() => toggleType(type)}
-            className={`flex-1 rounded-full px-6 py-3 text-lg font-semibold transition-colors ${formData.type === type
-              ? `bg-${type === 'income' ? 'green' : 'red'}-600 text-white shadow-md hover:bg-${type === 'income' ? 'green' : 'red'
-              }-700`
-              : 'text-gray-700 hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-600'
+            aria-pressed={formData.type === type}
+            className={`py-2 text-sm font-medium transition-colors ${formData.type === type
+              ? type === 'income'
+                ? 'bg-green-600 text-white'
+                : 'bg-red-600 text-white'
+              : 'text-gray-700 hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-700'
               }`}
           >
             {type[0].toUpperCase() + type.slice(1)}
@@ -185,7 +171,7 @@ export default function NewTransactionForm() {
         ))}
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-5">
         <InputField
           id="amount"
           label="Amount"
@@ -203,7 +189,7 @@ export default function NewTransactionForm() {
           value={formData.description}
           onChange={handleChange}
           required
-          placeholder="e.g. Groceries"
+          placeholder="e.g. Grocery Shopping"
         />
         <SelectField
           id="category"
@@ -213,18 +199,26 @@ export default function NewTransactionForm() {
           options={categories[formData.type]}
           required
         />
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-2 gap-4">
           <InputField id="date" label="Date" type="date" value={formData.date} onChange={handleChange} required />
           <InputField id="time" label="Time" type="time" value={formData.time} onChange={handleChange} />
         </div>
 
-        {status === 'error' && <p className="text-center text-sm font-medium text-red-600">{error}</p>}
-        {status === 'success' && <p className="text-center text-sm font-medium text-green-600">Transaction added!</p>}
+        {(status === 'error' || status === 'success') && (
+          <motion.p
+            ref={messageRef}
+            className={`text-center text-sm font-medium ${status === 'error' ? 'text-red-600' : 'text-green-600'}`}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+          >
+            {status === 'error' ? error : 'Transaction added successfully!'}
+          </motion.p>
+        )}
 
         <button
           type="submit"
           disabled={status === 'loading'}
-          className="w-full rounded-lg bg-blue-600 py-3 text-lg font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+          className="w-full rounded-lg bg-blue-600 py-3 text-sm font-semibold text-white hover:bg-blue-700 transition disabled:opacity-60"
         >
           {status === 'loading' ? 'Saving...' : 'Add Transaction'}
         </button>

@@ -15,7 +15,7 @@ export default function RecentTransactions({
   refreshSignal,
 }: {
   userId: string;
-  refreshSignal?: any;
+  refreshSignal?: boolean | number;
 }) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,7 +32,6 @@ export default function RecentTransactions({
       } finally {
         setLoading(false);
       }
-
     };
 
     fetchTransactions();
@@ -42,7 +41,7 @@ export default function RecentTransactions({
     return (
       <div className="space-y-2">
         {Array.from({ length: 3 }).map((_, idx) => (
-          <div key={idx} className="h-14    rounded-md animate-pulse" />
+          <div key={idx} className="h-14 rounded-md animate-pulse" />
         ))}
       </div>
     );

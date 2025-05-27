@@ -5,10 +5,10 @@ import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/nextjs'
 export default function Navbar() {
   return (
     <header className="flex justify-between items-center p-4 gap-4 h-16 border-b border-gray-200 bg-white sticky top-0 z-50 shadow-md">
-      <h1 className="text-2xl font-normal text-green-600 select-none">
-        Expense Tracker
+      <h1 className="text-2xl font-semibold text-green-800 select-none">
+        MyExpense
       </h1>
-      <ul>
+      <ul className='font-semibold text-gray-700 flex items-center gap-4'>
         <Link href="/" className="text-gray-700 hover:text-green-600 transition">
           <li className="inline-block px-4 py-2">Home</li>
         </Link>

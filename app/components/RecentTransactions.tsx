@@ -55,7 +55,7 @@ export default function RecentTransactions({ userId, refreshSignal }: RecentTran
     }
   }, [userId, refreshSignal]);
 
-  function isValidTransaction(tx: any): tx is Transaction {
+  function isValidTransaction(tx: unknown): tx is Transaction {
     return (
       typeof tx === 'object' &&
       tx !== null &&

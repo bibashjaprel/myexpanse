@@ -107,7 +107,7 @@ export async function GET(request: Request) {
 
     // Cache the results with 5 minutes expiration
     try {
-      await redis.set(cacheKey, JSON.stringify(transactions), 'EX', 300);
+      await redis.set(cacheKey, JSON.stringify(transactions), { ex: 3600 });
     } catch (cacheError) {
       console.warn('Failed to cache transactions:', cacheError);
       // Don't fail the request if caching fails

@@ -30,21 +30,21 @@ export default function RecentTransactions({ userId, refreshSignal }: RecentTran
         if (!res.ok) {
           throw new Error(`Failed to fetch transactions: ${res.statusText}`);
         }
-        const data = await res.json();
 
-        if (Array.isArray(data)) {
-          // Sort descending by createdAt (newest first)
+        const data: unknown = await res.json();
+
+        if (Array.isArray(data) && data.every(isValidTransaction)) {
           const sorted = data.sort(
             (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
           );
           setTransactions(sorted.slice(0, 5));
         } else {
-          setTransactions([]);
-          setError('Unexpected data format from server.');
+          throw new Error('Unexpected data format from server.');
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Error fetching transactions.';
         setTransactions([]);
-        setError(err.message || 'Error fetching transactions.');
+        setError(message);
       } finally {
         setLoading(false);
       }
@@ -58,7 +58,19 @@ export default function RecentTransactions({ userId, refreshSignal }: RecentTran
     }
   }, [userId, refreshSignal]);
 
-  function formatDate(dateString: string) {
+  function isValidTransaction(tx: any): tx is Transaction {
+    return (
+      typeof tx === 'object' &&
+      tx !== null &&
+      typeof tx.id === 'string' &&
+      typeof tx.amount === 'number' &&
+      typeof tx.category === 'string' &&
+      (tx.type === 'income' || tx.type === 'expense') &&
+      typeof tx.createdAt === 'string'
+    );
+  }
+
+  function formatDate(dateString: string): string {
     const date = new Date(dateString);
     if (isToday(date)) return 'Today';
     if (isYesterday(date)) return 'Yesterday';

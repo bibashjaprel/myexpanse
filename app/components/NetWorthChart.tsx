@@ -11,6 +11,7 @@ import {
   Legend,
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
+import type { TooltipItem } from 'chart.js';
 
 ChartJS.register(LineElement, PointElement, LinearScale, CategoryScale, Tooltip, Legend);
 
@@ -36,10 +37,7 @@ export default function NetWorthChart({ userId }: NetWorthChartProps) {
 
       try {
         const res = await fetch(`/api/transactions/monthly?userId=${encodeURIComponent(userId)}`);
-
-        if (!res.ok) {
-          throw new Error(`Failed to fetch data: ${res.statusText}`);
-        }
+        if (!res.ok) throw new Error(`Failed to fetch data: ${res.statusText}`);
 
         const json = await res.json();
 
@@ -52,8 +50,9 @@ export default function NetWorthChart({ userId }: NetWorthChartProps) {
         }
 
         setData(json);
-      } catch (err: any) {
-        setError(err.message || 'Something went wrong');
+      } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : 'Something went wrong';
+        setError(errorMessage);
         setData([]);
       } finally {
         setLoading(false);
@@ -69,11 +68,11 @@ export default function NetWorthChart({ userId }: NetWorthChartProps) {
   }, [userId]);
 
   const chartData = useMemo(() => ({
-    labels: data.map(d => d.month),
+    labels: data.map((d) => d.month),
     datasets: [
       {
         label: 'Income',
-        data: data.map(d => d.income),
+        data: data.map((d) => d.income),
         borderColor: '#00ff7f',
         backgroundColor: 'rgba(0,255,127,0.2)',
         fill: true,
@@ -81,7 +80,7 @@ export default function NetWorthChart({ userId }: NetWorthChartProps) {
       },
       {
         label: 'Expense',
-        data: data.map(d => d.expense),
+        data: data.map((d) => d.expense),
         borderColor: '#ff4d4d',
         backgroundColor: 'rgba(255,77,77,0.2)',
         fill: true,
@@ -96,7 +95,7 @@ export default function NetWorthChart({ userId }: NetWorthChartProps) {
       legend: { position: 'top' as const },
       tooltip: {
         callbacks: {
-          label: (context: any) => {
+          label: (context: TooltipItem<'line'>) => {
             const value = context.parsed.y ?? 0;
             return `${context.dataset.label}: $${value.toLocaleString()}`;
           },
@@ -107,7 +106,7 @@ export default function NetWorthChart({ userId }: NetWorthChartProps) {
       y: {
         beginAtZero: true,
         ticks: {
-          callback: function (tickValue: string | number) {
+          callback: (tickValue: string | number) => {
             const num = typeof tickValue === 'number' ? tickValue : Number(tickValue);
             return `$${num.toLocaleString()}`;
           },

@@ -1,24 +1,17 @@
-// app/layout.tsx
-import './globals.css'
-import type { Metadata } from 'next'
-import { GeistSans, GeistMono } from 'geist/font'
-import ClientOnly from './ClientOnly'
-import Navbar from './Navbar'
+'use client'
 
-export const metadata: Metadata = {
-  title: 'MyExpense',
-  description: 'Track your money easily',
-}
+import { useState, useEffect } from 'react'
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <html lang="en">
-      <body className={`${GeistSans.variable} ${GeistMono.variable} antialiased`}>
-        <ClientOnly>
-          <Navbar />
-        </ClientOnly>
-        {children}
-      </body>
-    </html>
-  )
+export default function ClientOnly({ children }: { children: React.ReactNode }) {
+  const [hasMounted, setHasMounted] = useState(false)
+
+  useEffect(() => {
+    setHasMounted(true)
+  }, [])
+
+  if (!hasMounted) {
+    return null
+  }
+
+  return <>{children}</>
 }

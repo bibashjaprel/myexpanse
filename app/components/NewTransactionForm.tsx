@@ -74,15 +74,19 @@ export default function NewTransactionForm() {
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
   const [error, setError] = useState('')
 
+  // On mount, initialize date, time, and default category/description
   useEffect(() => {
     const now = new Date()
     setFormData(f => ({
       ...f,
       date: now.toISOString().split('T')[0],
       time: now.toTimeString().slice(0, 5),
+      category: 'Utilities',        // default category
+      description: 'Utilities',     // default description same as category
     }))
   }, [])
 
+  // Scroll into view message on status change (success/error)
   useEffect(() => {
     if (status !== 'idle') {
       messageRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -91,11 +95,24 @@ export default function NewTransactionForm() {
 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { id, value } = e.target
-    setFormData(f => ({ ...f, [id]: value }))
+
+    setFormData(f => {
+      if (id === 'category') {
+        // If description empty or equals previous category, update it to new category
+        const newDescription = (!f.description || f.description === f.category) ? value : f.description
+        return { ...f, category: value, description: newDescription }
+      }
+      return { ...f, [id]: value }
+    })
   }
 
   const toggleType = (type: TransactionType) => {
-    setFormData(f => ({ ...f, type, category: '' }))
+    setFormData(f => ({
+      ...f,
+      type,
+      category: type === 'expense' ? 'Utilities' : '',   // reset category on type change, default Utilities for expense
+      description: type === 'expense' ? 'Utilities' : '', // same for description
+    }))
   }
 
   const handleSubmit = async (e: FormEvent) => {
@@ -130,7 +147,8 @@ export default function NewTransactionForm() {
       setStatus('success')
       setFormData(f => ({
         ...f,
-        amount: '', description: '', category: '',
+        amount: '',
+        description: f.category,  // reset description to current category after submit
         time: new Date().toTimeString().slice(0, 5),
       }))
       setTimeout(() => setStatus('idle'), 3000)
@@ -218,9 +236,9 @@ export default function NewTransactionForm() {
         <button
           type="submit"
           disabled={status === 'loading'}
-          className="w-full rounded-lg bg-blue-600 py-3 text-sm font-semibold text-white hover:bg-blue-700 transition disabled:opacity-60"
+          className="w-full rounded-lg bg-blue-600 px-6 py-3 text-center text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
         >
-          {status === 'loading' ? 'Saving...' : 'Add Transaction'}
+          {status === 'loading' ? 'Submitting...' : 'Add Transaction'}
         </button>
       </form>
     </div>

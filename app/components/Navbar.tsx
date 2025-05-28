@@ -13,7 +13,7 @@ export default function Navbar() {
   }, [])
 
   return (
-    <header className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-md">
+    <header className="sticky top-0 z-50 bg-white dark:bg-zinc-900 border-b border-gray-200 shadow-md">
       <div className="max-w-7xl mx-auto flex items-center justify-between p-4 md:p-6">
         <h1 className="text-2xl font-semibold text-green-800 select-none">MyExpense</h1>
 
@@ -48,7 +48,7 @@ export default function Navbar() {
             ${menuOpen ? 'block' : 'hidden'} md:block
           `}
         >
-          <ul className="flex flex-col md:flex-row md:gap-6 font-semibold text-gray-700">
+          <ul className="flex flex-col md:flex-row md:gap-6 font-semibold text-white">
             {['/', '/transactions', '/dashboard'].map((href) => {
               const label = href === '/' ? 'Home' : href.slice(1).charAt(0).toUpperCase() + href.slice(2)
               return (

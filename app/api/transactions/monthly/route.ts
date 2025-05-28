@@ -44,7 +44,7 @@ export async function GET(req: Request) {
     const cacheKey = `monthly:${userId}:${filter}`;
     const cached = await redis.get(cacheKey);
 
-    if (cached) {
+    if (typeof cached === 'string') {
       try {
         const parsed = JSON.parse(cached);
         return NextResponse.json(parsed);

@@ -2,29 +2,38 @@ import { prisma } from '@/lib/prisma';
 import { redis } from '@/lib/redis';
 import { NextResponse } from 'next/server';
 
+interface TransactionData {
+  userId?: string;
+  amount?: string | number;
+  description?: string;
+  category?: string;
+  type?: string;
+  date?: string;
+  time?: string;
+}
+
 export async function POST(request: Request) {
   try {
-    const data = (await request.json()) as {
-      userId?: string;
-      amount?: string | number;
-      description?: string;
-      category?: string;
-      type?: string;
-      date?: string;
-      time?: string;
-    };
-
+    const data = (await request.json()) as TransactionData;
     const { userId, amount, description, category, type, date, time } = data;
 
+    // Validate required fields
     if (!userId || !amount || !description || !category || !type || !date) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
+    // Parse and validate amount
     const parsedAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
       return NextResponse.json({ error: 'Invalid amount' }, { status: 400 });
     }
 
+    // Validate transaction type
+    if (type !== 'income' && type !== 'expense') {
+      return NextResponse.json({ error: 'Invalid transaction type' }, { status: 400 });
+    }
+
+    // Create transaction
     const transaction = await prisma.transaction.create({
       data: {
         userId,
@@ -37,9 +46,19 @@ export async function POST(request: Request) {
       },
     });
 
-    // Invalidate cache after creating new transaction
-    const cacheKey = `transactions:${userId}`;
-    await redis.del(cacheKey);
+    // Invalidate related caches
+    const transactionsCacheKey = `transactions:${userId}`;
+    const monthlyCacheKey = `monthly_transactions_${userId}`;
+
+    try {
+      await Promise.all([
+        redis.del(transactionsCacheKey),
+        redis.del(monthlyCacheKey),
+      ]);
+    } catch (cacheError) {
+      console.warn('Failed to invalidate cache:', cacheError);
+      // Don't fail the request if cache invalidation fails
+    }
 
     return NextResponse.json(transaction, { status: 201 });
   } catch (error) {
@@ -58,26 +77,41 @@ export async function GET(request: Request) {
     }
 
     const cacheKey = `transactions:${userId}`;
-    const cached = await redis.get(cacheKey);
 
-    if (cached) {
-      try {
+    // Try to get from cache first
+    try {
+      const cached = await redis.get(cacheKey);
+      if (cached && typeof cached === 'string') {
         const parsed = JSON.parse(cached);
         return NextResponse.json(parsed);
-      } catch (parseError) {
-        console.warn('Failed to parse cached transactions:', parseError);
-        // Continue to fetch fresh data from DB
       }
+    } catch (cacheError) {
+      console.warn('Cache retrieval failed:', cacheError);
+      // Continue to database fetch
     }
 
+    // Fetch from database
     const transactions = await prisma.transaction.findMany({
       where: { userId },
-      orderBy: { date: 'desc' },
-      take: 5,
+      orderBy: { createdAt: 'desc' }, // Changed to createdAt for better sorting
+      take: 10, // Increased to show more recent transactions
+      select: {
+        id: true,
+        amount: true,
+        category: true,
+        type: true,
+        createdAt: true,
+        description: true,
+      },
     });
 
-    // Cache the stringified transactions with 5 minutes expiration
-    await redis.set(cacheKey, JSON.stringify(transactions), { ex: 300 });
+    // Cache the results with 5 minutes expiration
+    try {
+      await redis.set(cacheKey, JSON.stringify(transactions), 'EX', 300);
+    } catch (cacheError) {
+      console.warn('Failed to cache transactions:', cacheError);
+      // Don't fail the request if caching fails
+    }
 
     return NextResponse.json(transactions);
   } catch (error) {
@@ -85,4 +119,3 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
-

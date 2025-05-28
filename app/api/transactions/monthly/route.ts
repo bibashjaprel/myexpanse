@@ -43,8 +43,15 @@ export async function GET(req: Request) {
 
     const cacheKey = `monthly:${userId}:${filter}`;
     const cached = await redis.get(cacheKey);
+
     if (cached) {
-      return NextResponse.json(cached);
+      try {
+        const parsed = JSON.parse(cached);
+        return NextResponse.json(parsed);
+      } catch (parseError) {
+        console.warn('Failed to parse cached monthly data:', parseError);
+        await redis.del(cacheKey); // clear invalid cache
+      }
     }
 
     const transactions = await prisma.transaction.findMany({
@@ -74,8 +81,8 @@ export async function GET(req: Request) {
 
     const result = Object.values(monthlyData);
 
-    // Cache the result for 1 hour (3600 seconds)
-    await redis.set(cacheKey, result, { ex: 3600 });
+    // Cache the stringified result for 1 hour (3600 seconds)
+    await redis.set(cacheKey, JSON.stringify(result), { ex: 3600 });
 
     return NextResponse.json(result);
   } catch (error) {

@@ -1,5 +1,4 @@
 'use client';
-
 import { useEffect, useState } from 'react';
 import { isToday, isYesterday, format } from 'date-fns';
 
@@ -30,9 +29,7 @@ export default function RecentTransactions({ userId, refreshSignal }: RecentTran
         if (!res.ok) {
           throw new Error(`Failed to fetch transactions: ${res.statusText}`);
         }
-
         const data: unknown = await res.json();
-
         if (Array.isArray(data) && data.every(isValidTransaction)) {
           const sorted = data.sort(
             (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -70,21 +67,51 @@ export default function RecentTransactions({ userId, refreshSignal }: RecentTran
     );
   }
 
-  function formatDate(dateString: string): string {
-    const date = new Date(dateString);
-    if (isToday(date)) return 'Today';
-    if (isYesterday(date)) return 'Yesterday';
-    return format(date, 'dd MMM yyyy');
+  // Group transactions by date labels
+  function groupTransactionsByDate(transactions: Transaction[]) {
+    const groups: { [key: string]: Transaction[] } = {};
+
+    transactions.forEach(tx => {
+      const date = new Date(tx.createdAt);
+      let label: string;
+
+      if (isToday(date)) {
+        label = 'Today';
+      } else if (isYesterday(date)) {
+        label = 'Yesterday';
+      } else {
+        label = format(date, 'dd MMM yyyy');
+      }
+
+      if (!groups[label]) {
+        groups[label] = [];
+      }
+      groups[label].push(tx);
+    });
+
+    return groups;
   }
 
+  // Format time for display
+  function formatTime(dateString: string): string {
+    return format(new Date(dateString), 'hh:mm a');
+  }
+
+  // Simple Rs. formatting
+  function formatAmount(amount: number): string {
+    return `Rs. ${amount.toLocaleString()}`;
+  }
+
+  const LoadingSkeleton = () => (
+    <div className="space-y-2">
+      {[1, 2, 3].map((idx) => (
+        <div key={idx} className="h-14 rounded-md animate-pulse bg-muted" />
+      ))}
+    </div>
+  );
+
   if (loading) {
-    return (
-      <div className="space-y-2">
-        {[1, 2, 3].map((idx) => (
-          <div key={idx} className="h-14 rounded-md animate-pulse bg-muted" />
-        ))}
-      </div>
-    );
+    return <LoadingSkeleton />;
   }
 
   if (error) {
@@ -95,24 +122,38 @@ export default function RecentTransactions({ userId, refreshSignal }: RecentTran
     return <p className="text-gray-500 text-sm">No recent transactions found.</p>;
   }
 
+  const groupedTransactions = groupTransactionsByDate(transactions);
+
   return (
-    <div className="space-y-2">
-      {transactions.map((tx) => (
-        <div
-          key={tx.id}
-          className="flex justify-between items-center rounded-lg p-2 shadow-sm bg-background dark:bg-muted"
-        >
-          <div>
-            <p className="text-sm font-medium dark:text-gray-200">{tx.category}</p>
-            <p className="text-xs text-gray-500">{formatDate(tx.createdAt)}</p>
-          </div>
-          <div className="text-right">
-            <span
-              className={`text-sm font-light ${tx.type === 'income' ? 'text-green-600' : 'text-red-600'
-                }`}
-            >
-              {tx.type === 'income' ? '+' : '-'} ₹{tx.amount}
-            </span>
+    <div className="space-y-4">
+      {Object.entries(groupedTransactions).map(([dateLabel, txs]) => (
+        <div key={dateLabel}>
+          {/* Date Label Header */}
+          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            {dateLabel}
+          </h3>
+
+          {/* Transactions for this date */}
+          <div className="space-y-2">
+            {txs.map((tx) => (
+              <div
+                key={tx.id}
+                className="flex justify-between items-center rounded-lg p-2 shadow-sm bg-background dark:bg-muted"
+              >
+                <div>
+                  <p className="text-sm font-medium dark:text-gray-200">{tx.category}</p>
+                  <p className="text-xs text-gray-500">{formatTime(tx.createdAt)}</p>
+                </div>
+                <div className="text-right">
+                  <span
+                    className={`text-sm font-light ${tx.type === 'income' ? 'text-green-600' : 'text-red-600'
+                      }`}
+                  >
+                    {tx.type === 'income' ? '+' : '-'} {formatAmount(tx.amount)}
+                  </span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       ))}

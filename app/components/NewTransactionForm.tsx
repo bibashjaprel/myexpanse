@@ -206,7 +206,7 @@ export default function NewTransactionForm() {
           label="Description"
           value={formData.description}
           onChange={handleChange}
-          required
+          // required
           placeholder="e.g. Grocery Shopping"
         />
         <SelectField
@@ -215,7 +215,7 @@ export default function NewTransactionForm() {
           value={formData.category}
           onChange={handleChange}
           options={categories[formData.type]}
-          required
+        // required
         />
         <div className="grid grid-cols-2 gap-4">
           <InputField id="date" label="Date" type="date" value={formData.date} onChange={handleChange} required />

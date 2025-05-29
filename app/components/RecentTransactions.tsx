@@ -18,122 +18,88 @@ interface RecentTransactionsProps {
 
 export default function RecentTransactions({ userId, refreshSignal }: RecentTransactionsProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<'loading' | 'error' | 'empty' | 'loaded'>('loading');
+  const [errorMsg, setErrorMsg] = useState('');
 
-  // Fetch transactions on userId or refreshSignal change
   useEffect(() => {
-    async function fetchTransactions() {
-      setLoading(true);
-      setError(null);
+    if (!userId) {
+      setStatus('empty');
+      setTransactions([]);
+      return;
+    }
 
+    const fetchTransactions = async () => {
+      setStatus('loading');
       try {
         const res = await fetch(`/api/transactions?userId=${encodeURIComponent(userId)}`);
-        if (!res.ok) {
-          throw new Error(`Failed to fetch transactions: ${res.statusText}`);
-        }
+        if (!res.ok) throw new Error(`Failed to fetch: ${res.statusText}`);
+
         const data: unknown = await res.json();
+        const valid = (data as unknown[]).filter(isValidTransaction);
 
-        if (Array.isArray(data) && data.every(isValidTransaction)) {
-          // Sort descending by date
-          const sorted = data.sort(
-            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-          );
-          setTransactions(sorted.slice(0, 5)); // Keep only latest 5
-        } else {
-          throw new Error('Unexpected data format from server.');
-        }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Error fetching transactions.';
+        const sorted = valid
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+          .slice(0, 5);
+
+        setTransactions(sorted);
+        setStatus(sorted.length ? 'loaded' : 'empty');
+      } catch (err) {
+        setErrorMsg(err instanceof Error ? err.message : 'Unknown error');
+        setStatus('error');
         setTransactions([]);
-        setError(message);
-      } finally {
-        setLoading(false);
       }
-    }
+    };
 
-    if (userId) {
-      fetchTransactions();
-    } else {
-      setTransactions([]);
-      setLoading(false);
-    }
+    fetchTransactions();
   }, [userId, refreshSignal]);
 
-  // Type guard for fetched data
-  function isValidTransaction(tx: unknown): tx is Transaction {
+  // Type guard
+  const isValidTransaction = (tx: unknown): tx is Transaction => {
+    if (typeof tx !== 'object' || tx === null) return false;
+    const t = tx as Record<string, unknown>;
     return (
-      typeof tx === 'object' &&
-      tx !== null &&
-      typeof (tx as any).id === 'string' &&
-      typeof (tx as any).amount === 'number' &&
-      typeof (tx as any).category === 'string' &&
-      ((tx as any).type === 'income' || (tx as any).type === 'expense') &&
-      typeof (tx as any).createdAt === 'string'
+      typeof t.id === 'string' &&
+      typeof t.amount === 'number' &&
+      typeof t.category === 'string' &&
+      (t.type === 'income' || t.type === 'expense') &&
+      typeof t.createdAt === 'string'
     );
-  }
+  };
 
-  // Group transactions by a readable date label
-  function groupTransactionsByDate(transactions: Transaction[]) {
-    const groups: { [key: string]: Transaction[] } = {};
+  // Group by date
+  const grouped = transactions.reduce<Record<string, Transaction[]>>((acc, tx) => {
+    const date = new Date(tx.createdAt);
+    const label = isToday(date)
+      ? 'Today'
+      : isYesterday(date)
+        ? 'Yesterday'
+        : format(date, 'dd MMM yyyy');
 
-    transactions.forEach((tx) => {
-      const date = new Date(tx.createdAt);
-      let label: string;
+    acc[label] = acc[label] || [];
+    acc[label].push(tx);
+    return acc;
+  }, {});
 
-      if (isToday(date)) {
-        label = 'Today';
-      } else if (isYesterday(date)) {
-        label = 'Yesterday';
-      } else {
-        label = format(date, 'dd MMM yyyy');
-      }
+  const formatTime = (dateStr: string) => format(new Date(dateStr), 'hh:mm a');
+  const formatAmount = (amount: number) => `Rs. ${amount.toLocaleString()}`;
 
-      if (!groups[label]) {
-        groups[label] = [];
-      }
-      groups[label].push(tx);
-    });
-
-    return groups;
-  }
-
-  // Format a date string to 'hh:mm AM/PM'
-  function formatTime(dateString: string): string {
-    return format(new Date(dateString), 'hh:mm a');
-  }
-
-  // Format number with Rs. and commas
-  function formatAmount(amount: number): string {
-    return `Rs. ${amount.toLocaleString()}`;
-  }
-
-  // Loading skeleton placeholder
   const LoadingSkeleton = () => (
     <div className="space-y-2">
-      {[1, 2, 3].map((idx) => (
+      {[...Array(3)].map((_, idx) => (
         <div key={idx} className="h-14 rounded-md animate-pulse bg-muted" />
       ))}
     </div>
   );
 
-  if (loading) return <LoadingSkeleton />;
-
-  if (error) return <p className="text-red-600 text-sm">Error: {error}</p>;
-
-  if (transactions.length === 0)
-    return <p className="text-gray-500 text-sm">No recent transactions found.</p>;
-
-  const groupedTransactions = groupTransactionsByDate(transactions);
+  if (status === 'loading') return <LoadingSkeleton />;
+  if (status === 'error') return <p className="text-red-600 text-sm">Error: {errorMsg}</p>;
+  if (status === 'empty') return <p className="text-gray-500 text-sm">No recent transactions found.</p>;
 
   return (
     <div className="space-y-4">
-      {(Object.entries(groupedTransactions) as [string, Transaction[]][]).map(([dateLabel, txs]) => (
-        <div key={dateLabel}>
-          {/* Date Label */}
-          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{dateLabel}</h3>
-
-          {/* Transactions list */}
+      {Object.entries(grouped).map(([label, txs]) => (
+        <div key={label}>
+          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{label}</h3>
           <div className="space-y-2">
             {txs.map((tx) => (
               <div
@@ -146,8 +112,7 @@ export default function RecentTransactions({ userId, refreshSignal }: RecentTran
                 </div>
                 <div className="text-right">
                   <span
-                    className={`text-sm font-light ${tx.type === 'income' ? 'text-green-600' : 'text-red-600'
-                      }`}
+                    className={`text-sm font-light ${tx.type === 'income' ? 'text-green-600' : 'text-red-600'}`}
                   >
                     {tx.type === 'income' ? '+' : '-'} {formatAmount(tx.amount)}
                   </span>
